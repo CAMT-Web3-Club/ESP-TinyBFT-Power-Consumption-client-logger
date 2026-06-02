@@ -1,6 +1,6 @@
 # ESP-TinyBFT Power Consumption Client Logger
 
-Serial logger client for the [ESP-TinyBFT](https://github.com/CAMT-Web3-Club/ESP-TinyBFT-Power-Consumption) counter application.
+Serial logger client for the [ESP-TinyBFT](https://github.com/CAMT-Web3-Club/esp-tinybft) counter application.
 
 Reads serial output from an ESP device running the TinyBFT consensus counter benchmark, parses log lines, computes real-time metrics (success rate, RTT, ops/min, uptime), and writes structured CSV data for post-processing with tools like Polars.
 
