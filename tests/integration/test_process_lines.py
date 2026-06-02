@@ -155,6 +155,8 @@ async def test_stats_summary_at_20_lines() -> None:
 
 @pytest.mark.asyncio
 async def test_with_csv_writer() -> None:
+    import csv
+
     with tempfile.NamedTemporaryFile(mode="r", suffix=".csv", delete=True) as tmp:
         path = tmp.name
 
@@ -171,11 +173,23 @@ async def test_with_csv_writer() -> None:
             with CsvWriter(path) as writer:
                 await process_lines(_lines(inc, reply), printer, metrics, ntp, writer)
 
-        with open(path) as f:
-            lines = f.readlines()
+        with open(path, newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
 
-        assert len(lines) == 3  # header + 2 events
-        assert "42" in lines[2]
+        assert len(rows) == 2  # 2 events
+        # First row is increment (should not have counter_value, status, or rtt_ms)
+        assert rows[0]["event_type"] == "increment"
+        assert rows[0]["rtt_ms"] == ""
+
+        # Second row is reply
+        assert rows[1]["event_type"] == "reply"
+        assert rows[1]["counter_value"] == "42"
+        assert rows[1]["status"] == "0"
+        # RTT should be populated (either 0.0 or a real duration)
+        assert rows[1]["rtt_ms"] != ""
+        assert float(rows[1]["rtt_ms"]) >= 0.0
+
         assert printer.line_count == 2
     finally:
         if os.path.exists(path):

@@ -66,8 +66,10 @@ async def process_lines(
         metrics.process(event)
         printer.update_stats(metrics.stats())
 
+        processed_event = metrics.last_processed_event or event
+
         if csv_writer is not None:
-            csv_writer.write(event)
+            csv_writer.write(processed_event)
 
         if printer.line_count % 10 == 0:
             printer.print_stats_summary()

@@ -18,11 +18,13 @@ class MetricsEngine:
         self._warmup_skipped = 0
         self._last_inc_ts: str | None = None
         self._start = time.monotonic()
+        self._last_processed_event: CounterEvent | None = None
 
     def process(self, event: CounterEvent) -> bool:
         match event.event_type:
             case "timeout" if not self._warmup_done:
                 self._warmup_skipped += 1
+                self._last_processed_event = event
                 return False
             case "increment":
                 self._last_inc_ts = event.ntp_timestamp
@@ -33,6 +35,7 @@ class MetricsEngine:
                     rtt = (_parse_iso(event.ntp_timestamp) - _parse_iso(self._last_inc_ts)) * 1000
                     event = event.model_copy(update={"rtt_ms": round(rtt, 1)})
 
+        self._last_processed_event = event
         self._events.append(event.model_dump())
         return True
 
@@ -45,3 +48,7 @@ class MetricsEngine:
     @property
     def warmup_done(self) -> bool:
         return self._warmup_done
+
+    @property
+    def last_processed_event(self) -> CounterEvent | None:
+        return self._last_processed_event
