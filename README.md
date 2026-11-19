@@ -56,6 +56,26 @@ Press Ctrl+C to exit
  ═══ Counter: 42  Success: 95% (19/20)  RTT: 344ms (max 512ms)  Ops/min: 23  Warmup: done  Uptime: 2m 34s ═══
 ```
 
+### Firmware versions
+
+The logger reads either format the counter client prints:
+
+- **Current firmware** (esp-tinybft `fix/develop/v0.2.9` and later, log level
+  WARN): one `CLIENT_STATS ok=… fail=… missed=… last_ms=…` line after every
+  request and a `BANNER preset=… load=…` line at boot. Success, failures and
+  missed slots are the board's own counters (totals are kept across a client
+  reboot), RTT is the board's `last_ms` of each new success, and the first
+  request after boot is left out of RTT (it waits for the cluster to come up),
+  as `tools/analyze.py` in the firmware does. The summary shows `OK:` instead of
+  `Counter:` (CLIENT_STATS has no counter value), plus preset/load and missed
+  slots; the CSV gets the columns `ok`, `fail`, `missed`, `preset`, `load`.
+- **Older firmware** (`devlope/v0.2.9`, log level INFO): the
+  `Client sending increment...`, `Client reply: value=…` and
+  `Request failed or timed out.` lines, with RTT timed on the host.
+
+Start a new CSV file for each run: appending to a CSV written by an older
+version of the logger mixes two column layouts.
+
 - **Counter lines** in cyan
 - **Warnings** in yellow
 - **Errors** in red

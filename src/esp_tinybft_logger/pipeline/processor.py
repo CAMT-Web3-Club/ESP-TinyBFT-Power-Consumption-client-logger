@@ -3,8 +3,10 @@ from collections.abc import AsyncGenerator
 from esp_tinybft_logger.analysis.engine import MetricsEngine
 from esp_tinybft_logger.ingest.parser import (
     event_type,
+    extract_kv,
     extract_status,
     extract_value,
+    kv_int,
     parse_line,
 )
 from esp_tinybft_logger.pipeline.ntp import NTPClient
@@ -43,14 +45,21 @@ async def process_lines(
         printer.update_esp_ticks(parsed.esp_ticks)
 
         if is_counter:
+            etype = event_type(parsed.message)
+            kv = extract_kv(parsed.message) if etype in ("stats", "banner") else {}
             event = CounterEvent(
                 ntp_timestamp=ts,
                 level=parsed.level,
                 tag=parsed.tag,
-                event_type=event_type(parsed.message),
+                event_type=etype,
                 message=parsed.message,
                 counter_value=extract_value(parsed.message),
                 status=extract_status(parsed.message),
+                ok=kv_int(kv, "ok"),
+                fail=kv_int(kv, "fail"),
+                missed=kv_int(kv, "missed"),
+                preset=kv.get("preset"),
+                load=kv.get("load"),
                 raw_line=parsed.raw_line,
             )
         else:

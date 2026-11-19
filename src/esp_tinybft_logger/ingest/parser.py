@@ -5,6 +5,7 @@ from esp_tinybft_logger.shared.models import ParsedLog
 _PATTERN = re.compile(r"^(I|W|E|D)\s*\((\d+)\)\s*(\w+):\s*(.*)$")
 _VALUE_RE = re.compile(r"value=(-?\d+)")
 _STATUS_RE = re.compile(r"status=(-?\d+)")
+_KV_RE = re.compile(r"(\w+)=(\S+)")
 
 
 def parse_line(raw: str) -> ParsedLog | None:
@@ -24,6 +25,14 @@ def parse_line(raw: str) -> ParsedLog | None:
 def event_type(message: str) -> str:
     msg_lower = message.lower()
     match msg_lower:
+        # Current firmware: one CLIENT_STATS line after every request (WARN
+        # level) and one BANNER line at boot.  Checked first: "fail=" in a
+        # CLIENT_STATS line must not be taken for a timeout.
+        case _ if msg_lower.startswith("client_stats "):
+            return "stats"
+        case _ if msg_lower.startswith("banner "):
+            return "banner"
+        # Older firmware (devlope/v0.2.9): INFO lines around each request.
         case _ if "sending increment" in msg_lower:
             return "increment"
         case _ if "reply: value=" in msg_lower:
@@ -44,3 +53,15 @@ def extract_status(message: str) -> int | None:
     if m := _STATUS_RE.search(message):
         return int(m.group(1))
     return None
+
+
+def extract_kv(message: str) -> dict[str, str]:
+    """key=value pairs of a CLIENT_STATS or BANNER line."""
+    return dict(_KV_RE.findall(message))
+
+
+def kv_int(kv: dict[str, str], key: str) -> int | None:
+    try:
+        return int(kv[key])
+    except KeyError, ValueError:
+        return None

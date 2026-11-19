@@ -60,11 +60,19 @@ class CliPrinter:
 
         text = Text()
         text.append(" ═══ ", style=_DIM_COLOR)
-        text.append(f"Counter: {s.counter_value}", style=_COUNTER_COLOR)
+        if s.preset or s.load:
+            text.append(f"{s.preset or '?'}/{s.load or '?'}  ", style=_DIM_COLOR)
+        if s.source == "device":
+            # CLIENT_STATS has no counter value: show the successful requests.
+            text.append(f"OK: {s.total_replies}", style=_COUNTER_COLOR)
+        else:
+            text.append(f"Counter: {s.counter_value}", style=_COUNTER_COLOR)
         text.append(
             f"  Success: {s.success_rate_pct}% ({s.total_replies}/{total})",
             style=success_style,
         )
+        if s.total_missed:
+            text.append(f"  Missed: {s.total_missed}", style=_WARN_COLOR)
         text.append(f"  RTT: {s.avg_rtt_ms}ms (max {s.max_rtt_ms}ms)", style=_DIM_COLOR)
         text.append(f"  Ops/min: {s.ops_per_minute}", style=_DIM_COLOR)
         text.append(f"  Warmup: {'done' if s.warmup_done else 'pending'}", style=warmup_style)

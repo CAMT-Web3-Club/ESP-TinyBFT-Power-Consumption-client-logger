@@ -22,6 +22,12 @@ class CounterEvent(BaseModel):
     counter_value: int | None = None
     status: int | None = None
     rtt_ms: float | None = None
+    # From CLIENT_STATS (counters of the current client boot) and BANNER.
+    ok: int | None = None
+    fail: int | None = None
+    missed: int | None = None
+    preset: str | None = None
+    load: str | None = None
     raw_line: str
 
 
@@ -30,6 +36,10 @@ class StatsSummary(BaseModel):
     total_increments: int = 0
     total_replies: int = 0
     total_timeouts: int = 0
+    total_missed: int = 0
+    preset: str | None = None
+    load: str | None = None
+    source: str = "log"
     warmup_timeouts_skipped: int = 0
     success_rate_pct: float = 0.0
     avg_rtt_ms: float = 0.0

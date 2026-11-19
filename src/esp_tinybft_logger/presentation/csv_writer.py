@@ -14,6 +14,11 @@ _HEADER = [
     "counter_value",
     "status",
     "rtt_ms",
+    "ok",
+    "fail",
+    "missed",
+    "preset",
+    "load",
     "raw_line",
 ]
 
