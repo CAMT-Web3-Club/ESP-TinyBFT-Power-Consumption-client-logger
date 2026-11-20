@@ -80,6 +80,18 @@ class TestParser:
         assert kv_int(kv, "last_ms") == 1698
         assert kv_int(kv, "nothing") is None
 
+    def test_wifi_lines_are_not_timeouts(self) -> None:
+        for line in (
+            "W (13021) counter: WiFi disconnected (attempt 1) reason=201 rssi=-71 "
+            "t_ms=13021, reconnecting...",
+            "W (2801) counter: WiFi associated ch=6 rssi=-58 bssid=aa:bb:cc:dd:ee:ff "
+            "after 0 retries",
+            "W (3305) counter: WiFi got IP t_ms=3305 after 0 retries",
+        ):
+            parsed = parse_line(line)
+            assert parsed is not None
+            assert event_type(parsed.message) == ""
+
     def test_old_lines_unchanged(self) -> None:
         assert event_type("Client sending increment...") == "increment"
         assert event_type("Client reply: value=42, status=0") == "reply"
@@ -115,6 +127,17 @@ class TestDeviceMetrics:
         # Second BANNER: the client rebooted and its counters start again.
         stats = (await _run(_BANNER, *_STATS, _BANNER, *_STATS[:2])).stats()
         assert stats.total_replies == 5
+
+    @pytest.mark.asyncio
+    async def test_wifi_lines_change_nothing(self) -> None:
+        wifi = (
+            "W (13021) counter: WiFi disconnected (attempt 1) reason=204 rssi=-80 "
+            "t_ms=13021, reconnecting..."
+        )
+        stats = (await _run(_BANNER, wifi, *_STATS, wifi)).stats()
+        assert stats.total_replies == 3
+        assert stats.total_timeouts == 0
+        assert stats.warmup_timeouts_skipped == 0
 
     @pytest.mark.asyncio
     async def test_reboot_without_banner(self) -> None:
