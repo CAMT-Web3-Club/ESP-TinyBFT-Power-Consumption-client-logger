@@ -75,7 +75,13 @@ The logger reads either format the counter client prints:
   already running, its counters so far are taken as the baseline and the run
   is counted from the logger's start (`first OK … after start`; the request of
   that first line is not counted, as it cannot be told whether it succeeded).
-  If the client boots while the logger runs, the run is counted from that boot. The summary shows `OK:` instead of
+  If the client boots while the logger runs, the run is counted from that boot.
+  Firmware that adds `value=` to `CLIENT_STATS` (the counter in the last
+  accepted reply, -1 before the first) shows `Counter:` again, and
+  `Agreed, no reply: N` when the counter jumped by more than the client's
+  successes: the replicas executed those requests, but the client did not get
+  f+1 matching replies and counted them as failures. `executed` is counted
+  from the run's first success to the latest one. The summary shows `OK:` instead of
   `Counter:` (CLIENT_STATS has no counter value), plus preset/load and missed
   slots; the CSV gets the columns `ok`, `fail`, `missed`, `preset`, `load`.
 - **Older firmware** (`devlope/v0.2.9`, log level INFO): the

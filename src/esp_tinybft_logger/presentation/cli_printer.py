@@ -62,8 +62,14 @@ class CliPrinter:
         text.append(" ═══ ", style=_DIM_COLOR)
         if s.preset or s.load:
             text.append(f"{s.preset or '?'}/{s.load or '?'}  ", style=_DIM_COLOR)
-        if s.source == "device":
-            # CLIENT_STATS has no counter value: show the successful requests.
+        if s.source == "device" and s.executed is not None:
+            # Newer firmware: CLIENT_STATS carries the counter value.
+            text.append(f"Counter: {s.counter_value}  OK: {s.total_replies}", style=_COUNTER_COLOR)
+            lost = s.executed - s.total_replies
+            if lost > 0:
+                text.append(f"  Agreed, no reply: {lost}", style=_WARN_COLOR)
+        elif s.source == "device":
+            # Older CLIENT_STATS has no counter value: show the successful requests.
             text.append(f"OK: {s.total_replies}", style=_COUNTER_COLOR)
         else:
             text.append(f"Counter: {s.counter_value}", style=_COUNTER_COLOR)

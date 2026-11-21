@@ -86,6 +86,10 @@ class MetricsEngine:
         self._cur = DeviceTotals()
         self._preset: str | None = None
         self._load: str | None = None
+        # Counter value in the replies (CLIENT_STATS value=, newer firmware):
+        # of the run's first success and of the latest one.
+        self._first_value: int | None = None
+        self._last_value: int | None = None
 
     def process(self, event: CounterEvent) -> bool:
         if self._t0 is None:
@@ -141,6 +145,11 @@ class MetricsEngine:
         new_success = now.ok > self._cur.ok
         self._cur = now
         run = self._base + self._cur
+        value = event.counter_value
+        if new_success and value is not None and value >= 0 and run.ok > 0:
+            if self._first_value is None:
+                self._first_value = value
+            self._last_value = value
         if run.ok > 0 and not self._warmup_done:
             self._warmup_done = True
             self._warmup_timeouts = run.fail
@@ -165,6 +174,8 @@ class MetricsEngine:
             load=self._load,
             first_ok_s=self._first_ok_s,
             first_ok_from=self._first_ok_from,
+            first_value=self._first_value,
+            last_value=self._last_value,
         )
 
     @property

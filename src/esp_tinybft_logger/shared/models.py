@@ -47,6 +47,10 @@ class StatsSummary(BaseModel):
     # "boot" (the client booted while logging) or "start" (of the logger).
     first_ok_s: float | None = None
     first_ok_from: str | None = None
+    # Counter value (CLIENT_STATS value=, newer firmware).  executed counts
+    # the requests the replicas executed from the run's first success to the
+    # latest one; executed - total_replies of them got no reply to the client.
+    executed: int | None = None
     success_rate_pct: float = 0.0
     avg_rtt_ms: float = 0.0
     max_rtt_ms: float = 0.0

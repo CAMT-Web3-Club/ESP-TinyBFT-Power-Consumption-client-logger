@@ -38,6 +38,8 @@ def build_summary(
     load: str | None = None,
     first_ok_s: float | None = None,
     first_ok_from: str | None = None,
+    first_value: int | None = None,
+    last_value: int | None = None,
 ) -> StatsSummary:
     if df.is_empty():
         return StatsSummary(
@@ -59,7 +61,12 @@ def build_summary(
         sent = device.ok + device.fail
         rtt_mean, rtt_max = _rtt(df.filter(pl.col("event_type") == "stats")["rtt_ms"])
         return StatsSummary(
-            counter_value=device.ok,
+            counter_value=last_value if last_value is not None else device.ok,
+            executed=(
+                last_value - first_value + 1
+                if first_value is not None and last_value is not None
+                else None
+            ),
             total_increments=sent,
             total_replies=device.ok,
             total_timeouts=device.fail,

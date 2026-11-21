@@ -244,3 +244,35 @@ class TestClientAlreadyRunning:
         stats = (await _run(*rows)).stats()
         assert stats.total_replies == 1 + 3
         assert stats.total_timeouts == 0
+
+
+class TestCounterValue:
+    """CLIENT_STATS value= (newer firmware): the counter in the last reply."""
+
+    @staticmethod
+    def _row(t_ms: int, ok: int, fail: int, value: int) -> str:
+        return (
+            f"W ({t_ms}) counter: CLIENT_STATS ok={ok} fail={fail} missed=0 last_ms=1700 "
+            f"min_ms=1700 avg_ms=1700 max_ms=1700 value={value}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_executed_and_agreed_without_reply(self) -> None:
+        rows = [
+            self._row(10_000, 0, 1, -1),  # no reply yet
+            self._row(12_000, 1, 1, 1),
+            self._row(14_000, 2, 1, 2),
+            self._row(34_000, 2, 2, 2),  # failed: was request 3 executed?
+            self._row(36_000, 3, 2, 4),  # yes: the counter jumped to 4
+        ]
+        stats = (await _run(_BANNER, *rows)).stats()
+        assert stats.total_replies == 3
+        assert stats.counter_value == 4
+        assert stats.executed == 4
+        assert stats.executed - stats.total_replies == 1
+
+    @pytest.mark.asyncio
+    async def test_old_firmware_has_no_value(self) -> None:
+        stats = (await _run(_BANNER, *_STATS)).stats()
+        assert stats.executed is None
+        assert stats.counter_value == 3  # falls back to the successes
