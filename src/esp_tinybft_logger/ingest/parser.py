@@ -37,7 +37,10 @@ def event_type(message: str) -> str:
             return "increment"
         case _ if "reply: value=" in msg_lower:
             return "reply"
-        case _ if "timed out" in msg_lower or "failed" in msg_lower:
+        # The older client's only failure line.  Not any "failed": transport
+        # warnings such as "tx to ... failed: frame 1/1 not acknowledged"
+        # are not request failures.
+        case _ if "request failed or timed out" in msg_lower:
             return "timeout"
         case _:
             return ""

@@ -8,15 +8,15 @@ from esp_tinybft_logger.shared.models import StatsSummary
 class TestBuildSummary:
     def test_empty_df(self) -> None:
         df = pl.DataFrame()
-        result = build_summary(df, warmup_done=False, warmup_skipped=3, uptime_seconds=60)
+        result = build_summary(df, warmup_done=False, warmup_timeouts=3, uptime_seconds=60)
         assert isinstance(result, StatsSummary)
-        assert result.warmup_timeouts_skipped == 3
+        assert result.warmup_timeouts == 3
         assert result.warmup_done is False
         assert result.success_rate_pct == 0.0
 
     def test_normal_df(self, sample_events_df: pl.DataFrame) -> None:
         result = build_summary(
-            sample_events_df, warmup_done=True, warmup_skipped=0, uptime_seconds=120
+            sample_events_df, warmup_done=True, warmup_timeouts=0, uptime_seconds=120
         )
         assert result.total_increments == 3
         assert result.total_replies == 2
@@ -36,7 +36,7 @@ class TestBuildSummary:
                 {"event_type": "reply", "rtt_ms": 200.0, "counter_value": 2},
             ]
         )
-        result = build_summary(df, warmup_done=True, warmup_skipped=0, uptime_seconds=60)
+        result = build_summary(df, warmup_done=True, warmup_timeouts=0, uptime_seconds=60)
         assert result.success_rate_pct == 100.0
         assert result.total_timeouts == 0
 
@@ -47,14 +47,14 @@ class TestBuildSummary:
                 {"event_type": "timeout", "rtt_ms": None, "counter_value": None},
             ]
         )
-        result = build_summary(df, warmup_done=True, warmup_skipped=0, uptime_seconds=60)
+        result = build_summary(df, warmup_done=True, warmup_timeouts=0, uptime_seconds=60)
         assert result.success_rate_pct == 0.0
         assert result.total_replies == 0  # type: ignore[attr-defined]
 
     def test_warmup_flags_propagated(self, sample_events_df: pl.DataFrame) -> None:
         result = build_summary(
-            sample_events_df, warmup_done=True, warmup_skipped=7, uptime_seconds=3600
+            sample_events_df, warmup_done=True, warmup_timeouts=7, uptime_seconds=3600
         )
         assert result.warmup_done is True
-        assert result.warmup_timeouts_skipped == 7
+        assert result.warmup_timeouts == 7
         assert result.uptime_seconds == 3600

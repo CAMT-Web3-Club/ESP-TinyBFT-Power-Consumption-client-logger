@@ -40,7 +40,10 @@ class StatsSummary(BaseModel):
     preset: str | None = None
     load: str | None = None
     source: str = "log"
-    warmup_timeouts_skipped: int = 0
+    # Warm-up: everything before the first successful request is counted
+    # like the rest of the run; these fields only describe it.
+    warmup_timeouts: int = 0
+    first_ok_boot_s: float | None = None
     success_rate_pct: float = 0.0
     avg_rtt_ms: float = 0.0
     max_rtt_ms: float = 0.0

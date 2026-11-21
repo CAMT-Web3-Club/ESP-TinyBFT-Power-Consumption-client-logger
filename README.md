@@ -53,7 +53,7 @@ ESP-TinyBFT Logger — /dev/ttyACM0 @ 115200 — NTP: synced (+3.5ms) — TZ: As
 Press Ctrl+C to exit
 14:32:01 I counter: Client sending increment...
 14:32:01 I counter: Client reply: value=42, status=0
- ═══ Counter: 42  Success: 95% (19/20)  RTT: 344ms (max 512ms)  Ops/min: 23  Warmup: done  Uptime: 2m 34s ═══
+ ═══ Counter: 42  Success: 95% (19/20)  RTT: 344ms (max 512ms)  Ops/min: 23  Warm-up: first OK 41s after boot  Uptime: 2m 34s ═══
 ```
 
 ### Firmware versions
@@ -64,9 +64,12 @@ The logger reads either format the counter client prints:
   WARN): one `CLIENT_STATS ok=… fail=… missed=… last_ms=…` line after every
   request and a `BANNER preset=… load=…` line at boot. Success, failures and
   missed slots are the board's own counters (totals are kept across a client
-  reboot), RTT is the board's `last_ms` of each new success, and the first
-  request after boot is left out of RTT (it waits for the cluster to come up),
-  as `tools/analyze.py` in the firmware does. The summary shows `OK:` instead of
+  reboot), and RTT is the board's `last_ms` of every new success. A run lasts
+  from power-on until the batteries are empty, so nothing is left out: the
+  requests that fail while the cluster comes up count like the rest, and the
+  first success after boot is in RTT. The summary reports the warm-up instead
+  (`Warm-up: first OK 3m 19s after boot, 9 failed before`, from the board's
+  own log clock). The summary shows `OK:` instead of
   `Counter:` (CLIENT_STATS has no counter value), plus preset/load and missed
   slots; the CSV gets the columns `ok`, `fail`, `missed`, `preset`, `load`.
 - **Older firmware** (`devlope/v0.2.9`, log level INFO): the

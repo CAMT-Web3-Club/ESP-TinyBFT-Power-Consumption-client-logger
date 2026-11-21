@@ -1,3 +1,4 @@
+import re
 import time
 from datetime import datetime
 
@@ -33,8 +34,22 @@ def _parse_iso(ts: str) -> float:
     return datetime.fromisoformat(ts).timestamp()
 
 
+_BOOT_MS_RE = re.compile(r"^[IWED]\s*\((\d+)\)")
+
+
+def _boot_ms(raw_line: str) -> int | None:
+    """Milliseconds since the board booted, from the ESP-IDF log prefix."""
+    m = _BOOT_MS_RE.match(raw_line.strip())
+    return int(m.group(1)) if m else None
+
+
 class MetricsEngine:
     """Metrics from the client's serial output.
+
+    A run lasts from power-on until the batteries are empty, and all of it is
+    data: requests that fail while the cluster comes up count like any
+    other, and every success has its latency.  The warm-up (failures before
+    the first success, and when that success came) is reported, not removed.
 
     Two sources, whichever the firmware prints:
     - current firmware: CLIENT_STATS after every request (the board's own
@@ -47,7 +62,8 @@ class MetricsEngine:
     def __init__(self) -> None:
         self._events: list[dict[str, object]] = []
         self._warmup_done = False
-        self._warmup_skipped = 0
+        self._warmup_timeouts = 0
+        self._first_ok_boot_ms: int | None = None
         self._last_inc_ts: str | None = None
         self._start = time.monotonic()
         self._last_processed_event: CounterEvent | None = None
@@ -62,14 +78,13 @@ class MetricsEngine:
     def process(self, event: CounterEvent) -> bool:
         match event.event_type:
             case "timeout" if not self._warmup_done:
-                self._warmup_skipped += 1
-                self._last_processed_event = event
-                return False
+                self._warmup_timeouts += 1
             case "increment":
                 self._last_inc_ts = event.ntp_timestamp
             case "reply":
                 if not self._warmup_done:
                     self._warmup_done = True
+                    self._first_ok_boot_ms = _boot_ms(event.raw_line)
                 if self._last_inc_ts is not None:
                     rtt = (_parse_iso(event.ntp_timestamp) - _parse_iso(self._last_inc_ts)) * 1000
                     event = event.model_copy(update={"rtt_ms": round(rtt, 1)})
@@ -95,13 +110,14 @@ class MetricsEngine:
             self._new_boot()  # rebooted without a BANNER on this port
         new_success = now.ok > self._cur.ok
         self._cur = now
-        if now.ok > 0:
+        if now.ok > 0 and not self._warmup_done:
             self._warmup_done = True
-        # The board's own latency of the request that just succeeded.  The
-        # first success after boot waits for the whole cluster to come up, so
-        # it is left out of RTT, as tools/analyze.py in the firmware does.
+            self._warmup_timeouts = now.fail
+            self._first_ok_boot_ms = _boot_ms(event.raw_line)
+        # The board's own latency of the request that just succeeded, the
+        # first one after boot included: it is part of the run.
         last_ms = kv_int(extract_kv(event.message), "last_ms")
-        rtt = float(last_ms) if new_success and now.ok > 1 and last_ms is not None else None
+        rtt = float(last_ms) if new_success and last_ms is not None else None
         return event.model_copy(update={"rtt_ms": rtt, "preset": self._preset, "load": self._load})
 
     def stats(self) -> StatsSummary:
@@ -111,11 +127,14 @@ class MetricsEngine:
         return build_summary(
             df,
             self._warmup_done,
-            self._warmup_skipped,
+            self._warmup_timeouts,
             uptime,
             device=device,
             preset=self._preset,
             load=self._load,
+            first_ok_boot_s=(
+                self._first_ok_boot_ms / 1000 if self._first_ok_boot_ms is not None else None
+            ),
         )
 
     @property

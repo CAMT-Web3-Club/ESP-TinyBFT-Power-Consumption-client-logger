@@ -32,15 +32,16 @@ _EVENT_REPLY = CounterEvent(
 
 
 class TestMetricsEngineWarmup:
-    def test_skips_timeouts_during_warmup(self) -> None:
+    def test_counts_timeouts_during_warmup(self) -> None:
+        # A run is power-on to empty battery: warm-up failures are data.
         engine = MetricsEngine()
         assert engine.warmup_done is False
         accepted = engine.process(_EVENT_TIMEOUT)
-        assert accepted is False
+        assert accepted is True
         assert engine.warmup_done is False
         stats = engine.stats()
-        assert stats.warmup_timeouts_skipped == 1
-        assert stats.total_timeouts == 0
+        assert stats.warmup_timeouts == 1
+        assert stats.total_timeouts == 1
 
     def test_warmup_ends_on_first_reply(self) -> None:
         engine = MetricsEngine()
@@ -51,7 +52,9 @@ class TestMetricsEngineWarmup:
         assert accepted is True
         assert engine.warmup_done is True
         stats = engine.stats()
-        assert stats.warmup_timeouts_skipped == 2
+        assert stats.warmup_timeouts == 2
+        assert stats.total_timeouts == 2
+        assert stats.first_ok_boot_s == 0.3  # "I (300) counter: Client reply..."
 
     def test_timeouts_counted_after_warmup(self) -> None:
         engine = MetricsEngine()
@@ -61,7 +64,7 @@ class TestMetricsEngineWarmup:
         engine.process(_EVENT_TIMEOUT)
         stats = engine.stats()
         assert stats.total_timeouts == 1
-        assert stats.warmup_timeouts_skipped == 0
+        assert stats.warmup_timeouts == 0
 
 
 class TestMetricsEngineRTT:
@@ -192,9 +195,9 @@ class TestMetricsEngineSchema:
         engine.process(self._stats(1, ok=1, last_ms=18879))
         engine.process(self._stats(2, ok=2, last_ms=14360))
         summary = engine.stats()
-        # The first success after boot is left out of RTT; the second counts.
-        assert summary.avg_rtt_ms == 14360.0
-        assert summary.max_rtt_ms == 14360.0
+        # Every success counts, the first one after boot included.
+        assert summary.avg_rtt_ms == (18879 + 14360) / 2
+        assert summary.max_rtt_ms == 18879.0
 
     def test_schema_covers_every_event_field(self) -> None:
         from esp_tinybft_logger.analysis.engine import EVENT_SCHEMA

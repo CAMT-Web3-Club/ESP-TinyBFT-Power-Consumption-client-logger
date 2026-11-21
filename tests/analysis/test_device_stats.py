@@ -106,9 +106,11 @@ class TestDeviceMetrics:
         assert stats.total_replies == 3
         assert stats.total_timeouts == 0
         assert stats.success_rate_pct == 100.0
-        # The first request after boot (6965 ms) is left out of RTT.
-        assert stats.avg_rtt_ms == 1697.5
-        assert stats.max_rtt_ms == 1698.0
+        # Every success counts, the first one after boot (6965 ms) included.
+        assert stats.avg_rtt_ms == round((6965 + 1698 + 1697) / 3, 1)
+        assert stats.max_rtt_ms == 6965.0
+        assert stats.first_ok_boot_s == 12.246
+        assert stats.warmup_timeouts == 0
         assert stats.preset == "en1"
         assert stats.load == "p10"
         assert stats.warmup_done is True
@@ -120,7 +122,7 @@ class TestDeviceMetrics:
         assert stats.total_timeouts == 1
         assert stats.total_missed == 1
         assert stats.success_rate_pct == 75.0
-        assert stats.max_rtt_ms == 1698.0  # 20012 ms of the failure is not an RTT
+        assert stats.max_rtt_ms == 6965.0  # 20012 ms of the failure is not an RTT
 
     @pytest.mark.asyncio
     async def test_client_reboot_keeps_totals(self) -> None:
@@ -137,7 +139,7 @@ class TestDeviceMetrics:
         stats = (await _run(_BANNER, wifi, *_STATS, wifi)).stats()
         assert stats.total_replies == 3
         assert stats.total_timeouts == 0
-        assert stats.warmup_timeouts_skipped == 0
+        assert stats.warmup_timeouts == 0
 
     @pytest.mark.asyncio
     async def test_reboot_without_banner(self) -> None:
@@ -158,3 +160,34 @@ class TestDeviceMetrics:
         last = rows[-1]
         assert ",stats," in last
         assert ",1697.0,3,0,0,en1,p10," in last
+
+
+class TestWarmup:
+    """The board run of 2026-11-21: 9 failures while the replicas came up."""
+
+    @pytest.mark.asyncio
+    async def test_failures_before_first_success_are_counted(self) -> None:
+        fails = [
+            f"W ({20000 * i}) counter: CLIENT_STATS ok=0 fail={i} missed=0 last_ms=20780 "
+            "min_ms=0 avg_ms=0 max_ms=0"
+            for i in range(1, 10)
+        ]
+        transport = (
+            "W (1234) tbft_espnow: tx to 88:56:a6:5b:f2:f0 failed: frame 1/1 not acknowledged"
+        )
+        ok = [
+            "W (199000) counter: CLIENT_STATS ok=1 fail=9 missed=0 last_ms=18879 "
+            "min_ms=18879 avg_ms=18879 max_ms=18879",
+            "W (214000) counter: CLIENT_STATS ok=2 fail=9 missed=0 last_ms=14360 "
+            "min_ms=14360 avg_ms=16619 max_ms=18879",
+        ]
+        stats = (await _run(_BANNER, transport, *fails, transport, *ok)).stats()
+        assert stats.total_replies == 2
+        assert stats.total_timeouts == 9
+        assert stats.success_rate_pct == round(2 / 11 * 100, 1)
+        assert stats.warmup_timeouts == 9
+        assert stats.first_ok_boot_s == 199.0
+        assert stats.avg_rtt_ms == round((18879 + 14360) / 2, 1)
+
+    def test_transport_failure_is_not_a_request_failure(self) -> None:
+        assert event_type("tx to 88:56:a6:5b:f2:f0 failed: frame 1/1 not acknowledged") != "timeout"
