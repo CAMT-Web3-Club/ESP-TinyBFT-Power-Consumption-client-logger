@@ -148,3 +148,58 @@ class TestNonCounterEvents:
         assert stats.counter_value == 1
         assert stats.total_replies == 1
         assert stats.total_timeouts == 0
+
+
+class TestMetricsEngineSchema:
+    """Regression: polars inferred the schema from the first 100 rows only.
+
+    A board run starts with minutes of transport warnings (no rtt_ms), so
+    rtt_ms was inferred as Null and the first measured latency crashed
+    stats() with "could not append value: 14360.0 of type: f64".
+    """
+
+    @staticmethod
+    def _stats(n: int, ok: int, last_ms: int) -> CounterEvent:
+        line = (
+            f"W ({n}) counter: CLIENT_STATS ok={ok} fail=9 missed=0 last_ms={last_ms} "
+            f"min_ms={last_ms} avg_ms={last_ms} max_ms={last_ms}"
+        )
+        return CounterEvent(
+            ntp_timestamp="2026-11-21T19:50:18.000+07:00",
+            level="W",
+            tag="counter",
+            event_type="stats",
+            message=line.split(": ", 1)[1],
+            ok=ok,
+            fail=9,
+            missed=0,
+            raw_line=line,
+        )
+
+    def test_late_first_value_after_many_null_rows(self) -> None:
+        engine = MetricsEngine()
+        for i in range(250):
+            engine.process(
+                CounterEvent(
+                    ntp_timestamp="2026-11-21T19:47:00.000+07:00",
+                    level="W",
+                    tag="tbft_espnow",
+                    event_type="",
+                    message="tx to 88:56:a6:5b:f2:f0 failed: frame 1/1 not acknowledged",
+                    raw_line=f"W ({i}) tbft_espnow: tx to 88:56:a6:5b:f2:f0 failed",
+                )
+            )
+        engine.process(self._stats(1, ok=1, last_ms=18879))
+        engine.process(self._stats(2, ok=2, last_ms=14360))
+        summary = engine.stats()
+        # The first success after boot is left out of RTT; the second counts.
+        assert summary.avg_rtt_ms == 14360.0
+        assert summary.max_rtt_ms == 14360.0
+
+    def test_schema_covers_every_event_field(self) -> None:
+        from esp_tinybft_logger.analysis.engine import EVENT_SCHEMA
+
+        assert set(EVENT_SCHEMA) == set(CounterEvent.model_fields)
+
+    def test_stats_with_no_events(self) -> None:
+        MetricsEngine().stats()

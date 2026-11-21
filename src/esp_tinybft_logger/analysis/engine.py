@@ -7,6 +7,27 @@ from esp_tinybft_logger.analysis.stats import DeviceTotals, build_summary
 from esp_tinybft_logger.ingest.parser import extract_kv, kv_int
 from esp_tinybft_logger.shared.models import CounterEvent, StatsSummary
 
+# Column types of CounterEvent.model_dump().  Without them polars infers the
+# schema from the first 100 rows: a run that opens with minutes of transport
+# warnings gets rtt_ms (and ok/fail/...) as Null, and the first measured
+# value then fails with "could not append value ... of type: f64".
+EVENT_SCHEMA: dict[str, type[pl.DataType]] = {
+    "ntp_timestamp": pl.String,
+    "level": pl.String,
+    "tag": pl.String,
+    "event_type": pl.String,
+    "message": pl.String,
+    "counter_value": pl.Int64,
+    "status": pl.Int64,
+    "rtt_ms": pl.Float64,
+    "ok": pl.Int64,
+    "fail": pl.Int64,
+    "missed": pl.Int64,
+    "preset": pl.String,
+    "load": pl.String,
+    "raw_line": pl.String,
+}
+
 
 def _parse_iso(ts: str) -> float:
     return datetime.fromisoformat(ts).timestamp()
@@ -85,7 +106,7 @@ class MetricsEngine:
 
     def stats(self) -> StatsSummary:
         uptime = int(time.monotonic() - self._start)
-        df: pl.DataFrame = pl.DataFrame(self._events)
+        df: pl.DataFrame = pl.DataFrame(self._events, schema=EVENT_SCHEMA)
         device = self._base + self._cur if self._device else None
         return build_summary(
             df,
