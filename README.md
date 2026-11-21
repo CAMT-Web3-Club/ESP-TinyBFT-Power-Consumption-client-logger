@@ -68,8 +68,14 @@ The logger reads either format the counter client prints:
   from power-on until the batteries are empty, so nothing is left out: the
   requests that fail while the cluster comes up count like the rest, and the
   first success after boot is in RTT. The summary reports the warm-up instead
-  (`Warm-up: first OK 3m 19s after boot, 9 failed before`, from the board's
-  own log clock). The summary shows `OK:` instead of
+  (`Warm-up: first OK 3m 19s after boot, 9 failed before`).
+  The client may stay powered between runs while only the replicas run on
+  batteries. Then start the logger when the batteries go in: if its first
+  `CLIENT_STATS` line comes without a `BANNER` before it, the client was
+  already running, its counters so far are taken as the baseline and the run
+  is counted from the logger's start (`first OK … after start`; the request of
+  that first line is not counted, as it cannot be told whether it succeeded).
+  If the client boots while the logger runs, the run is counted from that boot. The summary shows `OK:` instead of
   `Counter:` (CLIENT_STATS has no counter value), plus preset/load and missed
   slots; the CSV gets the columns `ok`, `fail`, `missed`, `preset`, `load`.
 - **Older firmware** (`devlope/v0.2.9`, log level INFO): the

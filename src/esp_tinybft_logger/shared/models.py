@@ -43,7 +43,10 @@ class StatsSummary(BaseModel):
     # Warm-up: everything before the first successful request is counted
     # like the rest of the run; these fields only describe it.
     warmup_timeouts: int = 0
-    first_ok_boot_s: float | None = None
+    # When the run's first success came, in seconds from first_ok_from:
+    # "boot" (the client booted while logging) or "start" (of the logger).
+    first_ok_s: float | None = None
+    first_ok_from: str | None = None
     success_rate_pct: float = 0.0
     avg_rtt_ms: float = 0.0
     max_rtt_ms: float = 0.0

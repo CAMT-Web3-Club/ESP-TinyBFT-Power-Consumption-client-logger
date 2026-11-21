@@ -75,8 +75,8 @@ class CliPrinter:
             text.append(f"  Missed: {s.total_missed}", style=_WARN_COLOR)
         text.append(f"  RTT: {s.avg_rtt_ms}ms (max {s.max_rtt_ms}ms)", style=_DIM_COLOR)
         text.append(f"  Ops/min: {s.ops_per_minute}", style=_DIM_COLOR)
-        if s.warmup_done and s.first_ok_boot_s is not None:
-            warmup = f"first OK {_fmt_uptime(int(s.first_ok_boot_s))} after boot"
+        if s.warmup_done and s.first_ok_s is not None:
+            warmup = f"first OK {_fmt_uptime(int(s.first_ok_s))} after {s.first_ok_from}"
         else:
             warmup = "done" if s.warmup_done else "pending"
         if s.warmup_timeouts:

@@ -54,7 +54,9 @@ class TestMetricsEngineWarmup:
         stats = engine.stats()
         assert stats.warmup_timeouts == 2
         assert stats.total_timeouts == 2
-        assert stats.first_ok_boot_s == 0.3  # "I (300) counter: Client reply..."
+        # No BANNER: timed from the first line the logger saw (14:30:00.000).
+        assert stats.first_ok_from == "start"
+        assert abs(stats.first_ok_s - 1.35) < 0.06
 
     def test_timeouts_counted_after_warmup(self) -> None:
         engine = MetricsEngine()
@@ -192,6 +194,8 @@ class TestMetricsEngineSchema:
                     raw_line=f"W ({i}) tbft_espnow: tx to 88:56:a6:5b:f2:f0 failed",
                 )
             )
+        # No BANNER: the first CLIENT_STATS is the baseline of the run.
+        engine.process(self._stats(0, ok=0, last_ms=20780))
         engine.process(self._stats(1, ok=1, last_ms=18879))
         engine.process(self._stats(2, ok=2, last_ms=14360))
         summary = engine.stats()

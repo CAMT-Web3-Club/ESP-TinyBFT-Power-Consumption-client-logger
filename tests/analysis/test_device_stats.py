@@ -109,7 +109,8 @@ class TestDeviceMetrics:
         # Every success counts, the first one after boot (6965 ms) included.
         assert stats.avg_rtt_ms == round((6965 + 1698 + 1697) / 3, 1)
         assert stats.max_rtt_ms == 6965.0
-        assert stats.first_ok_boot_s == 12.246
+        assert stats.first_ok_s == 12.246
+        assert stats.first_ok_from == "boot"
         assert stats.warmup_timeouts == 0
         assert stats.preset == "en1"
         assert stats.load == "p10"
@@ -143,8 +144,10 @@ class TestDeviceMetrics:
 
     @pytest.mark.asyncio
     async def test_reboot_without_banner(self) -> None:
+        # No BANNER at the start: the first line (ok=1) is the baseline, so
+        # the run has ok 2 and 3, then the reboot's ok=1.
         stats = (await _run(*_STATS, _STATS[0])).stats()
-        assert stats.total_replies == 4
+        assert stats.total_replies == 3
 
     @pytest.mark.asyncio
     async def test_csv_has_device_columns(self) -> None:
@@ -186,8 +189,58 @@ class TestWarmup:
         assert stats.total_timeouts == 9
         assert stats.success_rate_pct == round(2 / 11 * 100, 1)
         assert stats.warmup_timeouts == 9
-        assert stats.first_ok_boot_s == 199.0
+        assert stats.first_ok_s == 199.0
         assert stats.avg_rtt_ms == round((18879 + 14360) / 2, 1)
 
     def test_transport_failure_is_not_a_request_failure(self) -> None:
         assert event_type("tx to 88:56:a6:5b:f2:f0 failed: frame 1/1 not acknowledged") != "timeout"
+
+
+class TestClientAlreadyRunning:
+    """The client stays on USB between runs; only the replicas run on batteries.
+
+    Its counters then hold earlier runs (the board of 2026-11-21 showed
+    ok=48 fail=55 when the logger was started).  The run is counted from the
+    logger's start, not from the client's boot.
+    """
+
+    @staticmethod
+    def _row(t_ms: int, ok: int, fail: int, last_ms: int) -> str:
+        return (
+            f"W ({t_ms}) counter: CLIENT_STATS ok={ok} fail={fail} missed=0 "
+            f"last_ms={last_ms} min_ms=1683 avg_ms=3000 max_ms=18879"
+        )
+
+    @pytest.mark.asyncio
+    async def test_counts_from_logger_start(self) -> None:
+        rows = [
+            self._row(1_160_000, 48, 55, 1800),  # baseline: earlier runs
+            self._row(1_162_000, 48, 56, 20000),  # failed (replicas still off)
+            self._row(1_164_000, 49, 56, 1750),
+            self._row(1_166_000, 50, 56, 1740),
+        ]
+        stats = (await _run(*rows)).stats()
+        assert stats.total_replies == 2
+        assert stats.total_timeouts == 1
+        assert stats.success_rate_pct == round(2 / 3 * 100, 1)
+        assert stats.avg_rtt_ms == 1745.0
+        assert stats.warmup_timeouts == 1
+        assert stats.first_ok_from == "start"
+
+    @pytest.mark.asyncio
+    async def test_boot_inside_the_session_counts_from_boot(self) -> None:
+        stats = (await _run(_BANNER, *_STATS)).stats()
+        assert stats.total_replies == 3
+        assert stats.first_ok_from == "boot"
+
+    @pytest.mark.asyncio
+    async def test_reboot_after_joining_a_running_client(self) -> None:
+        rows = [
+            self._row(1_160_000, 48, 55, 1800),
+            self._row(1_164_000, 49, 55, 1750),
+            _BANNER,
+            *_STATS,
+        ]
+        stats = (await _run(*rows)).stats()
+        assert stats.total_replies == 1 + 3
+        assert stats.total_timeouts == 0
